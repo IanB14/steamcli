@@ -1,2 +1,2 @@
 # steamcli
-A CLI for interacting with Steam
+A CLI for interacting with Steam.

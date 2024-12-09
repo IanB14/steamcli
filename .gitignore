@@ -23,3 +23,9 @@ go.work.sum
 
 # env file
 .env
+
+# Don't send API keys to GitHub
+api/keys.go
+
+# Don't include the binary built with `go build` used for testing
+steamcli
