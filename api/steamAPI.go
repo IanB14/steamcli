@@ -4,43 +4,40 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 )
 
-type OwnedGamesResponse struct {
-	Response struct {
-		GameCount int `json:"game_count"`
-		Games     []struct {
-			Appid                  int `json:"appid"`
-			PlaytimeForever        int `json:"playtime_forever"`
-			PlaytimeWindowsForever int `json:"playtime_windows_forever"`
-			PlaytimeMacForever     int `json:"playtime_mac_forever"`
-			PlaytimeLinuxForever   int `json:"playtime_linux_forever"`
-			PlaytimeDeckForever    int `json:"playtime_deck_forever"`
-			RtimeLastPlayed        int `json:"rtime_last_played"`
-			PlaytimeDisconnected   int `json:"playtime_disconnected"`
-			Playtime2Weeks         int `json:"playtime_2weeks,omitempty"`
-		} `json:"games"`
-	} `json:"response"`
-}
+// TODO(ian): This can actually call *any* URL that's passed to it. Might need
+// to refactor this comment a bit to make that clearer. It's only *supposed* to
+// be used to call the Steam API tho.
 
-// CallSteamAPI uses Steam's Web API to look up the owned games for a given
-// account.
-func GetOwnedGames(accountID string) (*OwnedGamesResponse, error) {
-	// TODO(ian): Use an efficient string builder here
-	req := "http://api.steampowered.com/IPlayerService/GetOwnedGames/v0001/?key=" + APIKey + "&steamid=" + accountID + "&format=json"
-	response, err := http.Get(req)
-	if err != nil {
-		return nil, fmt.Errorf("GetOwnedGames() for accountID %v failed: %v", accountID, err)
+// CallSteamAPI calls the Steam API based on the given URL string and method. On
+// success, it writes to the jsonOutput and returns nil. On an error, it skips
+// the json write and returns an error.
+func CallSteamAPI(url string, method string, jsonOutput interface{}) error {
+	client := &http.Client{
+		// Explicitly set timeout so we don't end up with hour long GET calls.
+		Timeout: 10 * time.Second,
 	}
-	// TODO(ian): Consider a !200 check here
-	defer response.Body.Close()
-
-	responseBody := new(OwnedGamesResponse)
-	err = json.NewDecoder(response.Body).Decode(&responseBody)
-
+	req, err := http.NewRequest(method, url, nil)
 	if err != nil {
-		return nil, fmt.Errorf("could not unmarshal Steam API response: %v", err)
+		return fmt.Errorf("could not construct request: %v", err)
 	}
 
-	return responseBody, nil
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("error calling steam API with request %v: %v", req, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("steam API returned status: %v", resp.StatusCode)
+	}
+
+	err = json.NewDecoder(resp.Body).Decode(jsonOutput)
+	if err != nil {
+		return fmt.Errorf("could not unmarshal Steam API response: %v", err)
+	}
+
+	return nil
 }
